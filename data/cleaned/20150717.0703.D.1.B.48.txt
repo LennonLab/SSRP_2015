@@ -1,0 +1,8 @@
+"C:\Users\Public\Documents\Experiments\Rachel\20150717_0703_1B_48h_DC.xpt" NA NA NA NA NA NA NA NA NA NA NA
+"C:\Users\Public\Documents\Protocols\EcoLogPlate_Read_96well.prt" NA NA NA NA NA NA NA NA NA NA NA
+"Plate 1" NA NA NA NA NA NA NA NA NA NA NA
+"42202" NA NA NA NA NA NA NA NA NA NA NA
+"0.403761574074074" NA NA NA NA NA NA NA NA NA NA NA
+"Synergy Mx" NA NA NA NA NA NA NA NA NA NA NA
+"219512" NA NA NA NA NA NA NA NA NA NA NA
+"Reader" NA NA NA NA NA NA NA NA NA NA NA
