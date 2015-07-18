@@ -56,9 +56,10 @@ To do this, we will simply not count any resource as being used, if the correspo
 
 ```{r, results = 'hide', echo=TRUE, message = FALSE, warning = FALSE}
 cutoff <- function(avg= "avg.water", sd = "sd.water", vals){
+
   # should also return the error
-  
   # mean, error, sd, should be based on resource qualified as being used
+
   cutoff <- 2*sd
   num <- 0
   
@@ -68,7 +69,8 @@ cutoff <- function(avg= "avg.water", sd = "sd.water", vals){
       } 
     } 
   return(num)
-  }
+}
+
 ```
 
 
@@ -112,8 +114,8 @@ for (name in file.names){
 Next we save the world... and normalize our data
 
 ```{r, results = 'hide', echo=FALSE, message = FALSE, warning = FALSE}
-file.path <- "~/GitHub/SSRP_2015/data/cleaned/"
-#file.path <- "./data/cleaned/"
+#file.path <- "~/GitHub/SSRP_2015/data/cleaned/"
+file.path <- "./data/cleaned/"
 
 file.name.data <- c()
 for (name in file.names){
@@ -124,7 +126,7 @@ for (name in file.names){
   duration <- file.name.info[[6]] # 24 or 48 hrs
   data <- as.matrix(read.table(paste(file.path, name, sep='')))
   
-  # Calculate the mean reading for water
+  # Calculate the mean, and sd reading for water
   avg.water <- mean(c(data[1,1], data[1,5], data[1,9]))
   sd.water <- sd(c(data[1,1], data[1,5], data[1,9]))
   
@@ -207,7 +209,6 @@ m1.48 <- melt(tp.48.dat, id = c("strain","evo.type","plate.replicate"))
 # Convert values into numbers
 m1.48$value <- as.numeric(as.character(m1.48$value))
 
-# ERROR HERE SOMEWHERE
 # Cast data to produce the mean number of resources for each isolate + sem
 use.means <- as.data.frame(cast(m1.48, evo.type + plate.replicate ~ strain, mean))
 use.sem <- as.data.frame(cast(m1.48, evo.type + plate.replicate ~ strain, se))
@@ -216,7 +217,6 @@ use.sem <- as.data.frame(cast(m1.48, evo.type + plate.replicate ~ strain, se))
 There are several ways to visualize this data set. Using the two matrices we just created, let's now make a bar plot with the mean data. Is this the most appropriate way to look at our data?
 
 ```{r, results = 'hide', echo=FALSE, message = FALSE, warning = FALSE}
-
 strains <- c('0703', '0711', '0723')
 ct <- 3
 for (strain in strains){
@@ -226,7 +226,7 @@ for (strain in strains){
       width = 700, height = 500, units = "px", pointsize = 17, bg = "white")
 
   plot.new()
-  par(mar = c(5,5,2,1) + 0.1)
+  par(mar = c(3,5,2,1) + 0.1)
 
   means <- as.numeric(use.means[, ct])
   sems  <- as.numeric(use.sem[, ct])
@@ -238,9 +238,9 @@ for (strain in strains){
         
         # label the axises
         names.arg = c("A", "D1", "D2", "D3"),
-        xlab = list(paste("Strain: KBS", strain, sep=""), cex = 1.5, font = 2),
+        # xlab = list(paste("Strain: KBS", strain, sep=""), cex = 1.5, font = 2),
         ylab = list("Mean Number of Resources", cex = 1.5, font = 2),
-        main = "48 hours",
+        main = paste("KBS", strain, ": 48 hours", sep=""),
         
         #Change the plot aesthetics
         cex.axis = 1.25, las = 1, beside = T,
@@ -251,7 +251,6 @@ for (strain in strains){
         args.legend = list(col = c("black","white"), bty = 'n', cex = 1.15)
         )
 
-  #text(1.5,14,"24 hrs", cex = 2, font = 2)
   box(lwd = 3)
 
   # Let's add some error bars
@@ -266,6 +265,7 @@ for (strain in strains){
   dev.off()
   ct <- ct + 1
   }
+
 ```
 
 
@@ -306,7 +306,7 @@ for (strain in strains){
       width = 700, height = 500, units = "px", pointsize = 17, bg = "white")
 
   plot.new()
-  par(mar = c(5,5,2,1) + 0.1)
+  par(mar = c(3,5,2,1) + 0.1)
 
   means <- as.numeric(use.means[,3])
   sems  <- as.numeric(use.sem[,3])
@@ -318,9 +318,9 @@ for (strain in strains){
         
         # label the axises
         names.arg = c("A", "D1", "D2", "D3"),
-        xlab = list(paste("Strain: KBS", strain, sep=""), cex = 1.5, font = 2),
+        # xlab = list(paste("Strain: KBS", strain, sep=""), cex = 1.5, font = 2),
         ylab = list("Mean Number of Resources", cex = 1.5, font = 2),
-        main = "24 hours",
+        main = paste("KBS", strain, ": 24 hours", sep=""),
         
         #Change the plot aesthetics
         cex.axis = 1.25, las = 1, beside = T,
@@ -331,7 +331,6 @@ for (strain in strains){
         args.legend = list(col = c("black","white"), bty = 'n', cex = 1.15)
         )
 
-  #text(1.5,14,"24 hrs", cex = 2, font = 2)
   box(lwd = 3)
 
   # Let's add some error bars
@@ -345,6 +344,7 @@ for (strain in strains){
 
   dev.off()
   }
+
 ```
 
 
@@ -357,8 +357,8 @@ fit.24 <- aov(value ~ evo.type * plate.replicate, data = m1.24)
 summary(fit.24)
 TukeyHSD(fit.24)
 
-fit.48 <- aov(value ~ strain* evo.type * plate.replicate, data = m1.48)
+fit.48 <- aov(value ~ strain * evo.type * plate.replicate, data = m1.48)
 summary(fit.48)
+TukeyHSD(fit.48)
 
 ```
-
