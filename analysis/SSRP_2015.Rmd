@@ -88,12 +88,14 @@ file.path <- "./data/cleaned/"
 file.names <- list.files(path = file.path, all.files=FALSE, 
                     full.names=FALSE, ignore.case=FALSE, include.dirs=FALSE)
 
-# read in ancestor files and grab average water use value
-water.vals <- vector(mode="list", length=3)
+# read in ancestor files and grab average water use value 
+# Length must equal number of strain IDs in folder
+water.vals <- vector(mode="list", length=4) 
 # create a list of unique identifiers by combining the id and duration
-names(water.vals) <- c('0711.24', '0711.48', '0723.24')
+# All strains in the data folder must be on this line
+names(water.vals) <- c('0711.24', '0711.48', '0723.48', '0703.48')
 
-ct = 1
+
 for (name in file.names){
   file.name.info <- strsplit(name, "\\.") # split file name
   sp.id <- file.name.info[[1]][2] # organism ID
@@ -106,7 +108,6 @@ for (name in file.names){
     avg <- mean(dat[1,1], dat[1,5], dat[1,9])
     index <- match(new.name, names(water.vals))
     water.vals[[index]] <- avg
-    ct = ct + 1
     }
   } 
 ```
@@ -210,46 +211,47 @@ m1.24 <- melt(tp.24.dat, id = c("strain","evo.type","plate.replicate"))
 # Convert values into numbers
 m1.24$value <- as.matrix(as.character(m1.24$value))
 
+# ERROR HERE SOMEWHERE
 # Cast data to produce the mean number of resources for each isolate + sem
-use.means <- as.data.frame(cast(m1.24, evo.type + plate.replicate ~ strain, mean))
-use.sem <- as.data.frame(cast(m1.24, evo.type + plate.replicate ~ strain, se))
+#use.means <- as.data.frame(cast(m1.24, evo.type + plate.replicate ~ strain, mean))
+#use.sem <- as.data.frame(cast(m1.24, evo.type + plate.replicate ~ strain, se))
 ```
 
 There are several ways to visualize this data set. Using the two matrices we just created, let's now make a bar plot with the mean data. Is this the most appropriate way to look at our data?
 
 ```{r, results = 'hide', echo=FALSE, message = FALSE, warning = FALSE}
-png(filename = "./figures/24hr-ResourcesUsed.png",
-    width = 700, height = 500, units = "px", pointsize = 17, bg = "white")
-
-par(mar = par(mar = c(3,5,2,1) + 0.1))
-plot.new()
-bp <- barplot(as.matrix(use.means),
-        # set the plot parameters
-        ylim = c(0, 15),
-        
-        # label the axises
-        xlab = list("Strain", cex = 1.5, font = 2),
-        ylab = list("Mean Number of Resources", cex = 1.5, font = 2),
-        main = "24 hours",
-        
-        #Change the plot aesthetics
-        cex.axis = 1.25, las = 1, beside = T,
-        col = c("black","White","White","White"), #"black","White","White","White"
-        
-        #create a legend
-        legend.text = c("Ancestor","Derived"), 
-        args.legend = list(col = c("black","white"), bty = 'n', cex = 1.15)
-        )
-
-#text(1.5,14,"24 hrs", cex = 2, font = 2)
-box(lwd = 3)
-
-# Let's add some error bars
-arrows(bp, use.means - use.sem, 
-       bp, use.means + use.sem, 
-       lwd = 2, angle = 90, code = 0)
-
-dev.off()
+# png(filename = "./figures/24hr-ResourcesUsed.png",
+#     width = 700, height = 500, units = "px", pointsize = 17, bg = "white")
+# 
+# par(mar = par(mar = c(3,5,2,1) + 0.1))
+# plot.new()
+# bp <- barplot(as.matrix(use.means),
+#         # set the plot parameters
+#         ylim = c(0, 15),
+#         
+#         # label the axises
+#         xlab = list("Strain", cex = 1.5, font = 2),
+#         ylab = list("Mean Number of Resources", cex = 1.5, font = 2),
+#         main = "24 hours",
+#         
+#         #Change the plot aesthetics
+#         cex.axis = 1.25, las = 1, beside = T,
+#         col = c("black","White","White","White"), #"black","White","White","White"
+#         
+#         #create a legend
+#         legend.text = c("Ancestor","Derived"), 
+#         args.legend = list(col = c("black","white"), bty = 'n', cex = 1.15)
+#         )
+# 
+# #text(1.5,14,"24 hrs", cex = 2, font = 2)
+# box(lwd = 3)
+# 
+# # Let's add some error bars
+# arrows(bp, use.means - use.sem, 
+#        bp, use.means + use.sem, 
+#        lwd = 2, angle = 90, code = 0)
+# 
+# dev.off()
 ```
 
 
@@ -320,3 +322,4 @@ fit.48 <- aov(value ~ strain* evo.type * plate.replicate, data = m1.48)
 summary(fit.48)
 
 ```
+
