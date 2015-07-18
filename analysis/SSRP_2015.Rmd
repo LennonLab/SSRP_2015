@@ -55,23 +55,19 @@ Consequently, we need to determine which values constitute real use.
 To do this, we will simply not count any resource as being used, if the corresponding value is less than two standard deviations away from the value for water.
 
 ```{r, results = 'hide', echo=TRUE, message = FALSE, warning = FALSE}
-cutoff <- function(vals){
+cutoff <- function(avg= "avg.water", sd = "sd.water", vals){
   # should also return the error
-  water <- vals[1]
-  vals <- vals[-1]
   
   # mean, error, sd, should be based on resource qualified as being used
-  std <- sd(vals)
-  avg <- mean(vals)
-  cutoff <- 1*std
+  cutoff <- 2*sd
   num <- 0
   
   for (val in vals){
-    if (val > water+cutoff){
+    if (val >= avg+cutoff){
       num = num + 1      
       } 
     } 
-  return(c(num, avg, std))
+  return(num)
   }
 ```
 
@@ -127,6 +123,10 @@ for (name in file.names){
   duration <- file.name.info[[6]] # 24 or 48 hrs
   data <- as.matrix(read.table(paste(file.path, name, sep='')))
   
+  # Calculate the mean reading for water
+  avg.water <- mean(c(data[1,1], data[1,5], data[1,9]))
+  sd.water <- sd(c(data[1,1], data[1,5], data[1,9]))
+  
   # if it's an ancestor file, do not normalize
   if (AorD == 'D'){
     # Remove the background
@@ -135,35 +135,29 @@ for (name in file.names){
     index <- match(new.name, names(water.vals))
     norm.val <- water.vals[[index]]
     
-    # Calculate the mean reading for water
-    avg.water <- mean(data[1,1], data[1,5], data[1,9])
-    
     # Remove background and Normalize the data
     data <- round(data * (norm.val/avg.water), digits = 3)
     }
   
   i1.vals <- as.numeric(data[,1:4])
-  i1.var <- var(i1.vals)
-  results <- cutoff(i1.vals)
-  i1.num <- results[1] 
-  i1.mean <- results[2]  
-  i1.sd <- results[3] 
+  i1.vals <- i1.vals[-1] # removing the single water value
+  i1.num <- cutoff(avg.water, sd.water, i1.vals)
+  i1.mean <- mean(i1.vals)  
+  i1.sd <- sd(i1.vals) 
   i1.err <- i1.sd/sqrt(length(i1.vals))
   
   i2.vals <- as.numeric(data[,5:8])
-  i2.var <- var(i2.vals)
-  results <- cutoff(i2.vals)
-  i2.num <- results[1] 
-  i2.mean <- results[2]  
-  i2.sd <- results[3] 
-  i2.err <- i2.sd/sqrt(length(i2.vals))
+  i2.vals <- i2.vals[-1]
+  i2.num <- cutoff(avg = avg.water, sd = sd.water, i2.vals)
+  i2.mean <- mean(i2.vals)  
+  i2.sd <- sd(i2.vals) 
+  i2.err <- i1.sd/sqrt(length(i2.vals))
   
   i3.vals <- as.numeric(data[,9:12])
-  i3.var <- var(i3.vals)
-  results <- cutoff(i1.vals)
-  i3.num <- results[1] 
-  i3.mean <- results[2]  
-  i3.sd <- results[3] 
+  i3.vals <- i3.vals[-1]
+  i3.num <- cutoff(avg = avg.water, sd = sd.water, i3.vals)
+  i3.mean <- mean(i3.vals)  
+  i3.sd <- sd(i3.vals) 
   i3.err <- i3.sd/sqrt(length(i3.vals))
   
   file.name.info <- c(file.name.info, i1.mean, i1.sd, i1.err, i1.num)
@@ -171,6 +165,9 @@ for (name in file.names){
   file.name.info <- c(file.name.info, i3.mean, i3.sd, i3.err, i3.num)
   file.name.data <- rbind(file.name.data, file.name.info)
   }
+
+sd.water <- sd(c(data[1,1], data[1,5], data[1,9]))
+avg.water <- mean(c(data[1,1], data[1,5], data[1,9]))
 
 dat.frame <- data.frame(matrix(unlist(file.name.data),
                       nrow=length(file.names), byrow=FALSE), stringsAsFactors=TRUE)
@@ -182,7 +179,6 @@ dat.frame <- setNames(dat.frame, c('data', 'strain', 'evo.type',
 
 resource.names <- as.matrix(read.table("./ecoplate.info/resource_matrix.txt"))
 mol.groups <- as.matrix(read.table("./ecoplate.info/moleculetype_matrix.txt"))
-
 ```
 
 ## 3) Analyzing and visualizing data
@@ -208,7 +204,7 @@ tp.24.dat <- tp.24[,c(2:3, 5, 10, 14, 18)]
 m1.24 <- melt(tp.24.dat, id = c("strain","evo.type","plate.replicate"))
 
 # Convert values into numbers
-m1.24$value <- as.matrix(as.character(m1.24$value))
+m1.24$value <- as.numeric(as.character(m1.24$value))
 
 # Cast data to produce the mean number of resources for each isolate + sem
 use.means <- as.data.frame(cast(m1.24, evo.type + plate.replicate ~ strain, mean))
@@ -218,26 +214,40 @@ use.sem <- as.data.frame(cast(m1.24, evo.type + plate.replicate ~ strain, se))
 There are several ways to visualize this data set. Using the two matrices we just created, let's now make a bar plot with the mean data. Is this the most appropriate way to look at our data?
 
 ```{r, results = 'hide', echo=FALSE, message = FALSE, warning = FALSE}
-png(filename = "./figures/24hr-ResourcesUsed.png",
+
+for (i in factor(m1.24$strain)){
+
+strain <- m1.24$strain[[1]]
+duration <- data.frame$duration...
+
+fig.filepath <- paste(duration, strain, 'ResourcesUsed', sep='_')
+
+png(filename = paste("./figures/24hr-ResourcesUsed", i, ".png", sep=""),
     width = 700, height = 500, units = "px", pointsize = 17, bg = "white")
 
-par(mar = par(mar = c(3,5,2,1) + 0.1))
 plot.new()
-bp <- barplot(as.matrix(use.means),
+par(mar = c(5,5,2,1) + 0.1)
+
+means <- as.numeric(use.means[,3])
+sems  <- as.numeric(use.sem[,3])
+
+bp <- barplot(means,
+              
         # set the plot parameters
-        ylim = c(0, 15),
+        ylim = c(0, max(means)*1.25),
         
         # label the axises
-        xlab = list("Strain", cex = 1.5, font = 2),
+        names.arg = c("A", "D1", "D2", "D3"),
+        xlab = list(paste("Strain: KBS", m1.24$strain[1], sep=""), cex = 1.5, font = 2),
         ylab = list("Mean Number of Resources", cex = 1.5, font = 2),
         main = "24 hours",
         
         #Change the plot aesthetics
         cex.axis = 1.25, las = 1, beside = T,
-        col = c("black","White","White","White"), #"black","White","White","White"
+        col = c("black","White","White","White"), 
         
         #create a legend
-        legend.text = c("Ancestor","Derived"), 
+        legend.text = c("Ancestor","Derived"),
         args.legend = list(col = c("black","white"), bty = 'n', cex = 1.15)
         )
 
@@ -245,9 +255,13 @@ bp <- barplot(as.matrix(use.means),
 box(lwd = 3)
 
 # Let's add some error bars
-arrows(bp, use.means - use.sem, 
-       bp, use.means + use.sem, 
+arrows(bp, means - sems, 
+       bp, means + sems, 
        lwd = 2, angle = 90, code = 0)
+
+# Add White Line for A error
+arrows(x0 = bp[1], y0 = means[1], y1= means[1] - sems[1], 
+       lwd = 2, angle = 90, code = 0, col="white")
 
 dev.off()
 ```
@@ -313,8 +327,9 @@ Let's run our stats to determine if there are any differences!
 What is the question we are trying to answer?
 ```{r}
 
-fit.24 <- aov(value ~ strain* evo.type * plate.replicate, data = m1.24)
+fit.24 <- aov(value ~ evo.type * plate.replicate, data = m1.24)
 summary(fit.24)
+TukeyHSD(fit.24)
 
 fit.48 <- aov(value ~ strain* evo.type * plate.replicate, data = m1.48)
 summary(fit.48)
