@@ -55,7 +55,7 @@ Consequently, we need to determine which values constitute real use.
 To do this, we will simply not count any resource as being used, if the corresponding value is less than two standard deviations away from the value for water.
 
 ```{r, results = 'hide', echo=TRUE, message = FALSE, warning = FALSE}
-cutoff <- function(vals){
+cutoff <- function(vals, avg.water, sd.water){
   # should also return the error
   water <- vals[1]
   vals <- vals[-1]
@@ -63,11 +63,11 @@ cutoff <- function(vals){
   # mean, error, sd, should be based on resource qualified as being used
   std <- sd(vals)
   avg <- mean(vals)
-  cutoff <- 1*std
+  cutoff <- 2 * sd.water
   num <- 0
   
   for (val in vals){
-    if (val > water+cutoff){
+    if (val > avg.water + cutoff){
       num = num + 1      
       } 
     } 
@@ -116,8 +116,8 @@ for (name in file.names){
 Next we save the world... and normalize our data
 
 ```{r, results = 'hide', echo=FALSE, message = FALSE, warning = FALSE}
-file.path <- "~/GitHub/SSRP_2015/data/cleaned/"
-#file.path <- "./data/cleaned/"
+#file.path <- "~/GitHub/SSRP_2015/data/cleaned/"
+file.path <- "./data/cleaned/"
 
 file.name.data <- c()
 for (name in file.names){
@@ -128,6 +128,10 @@ for (name in file.names){
   duration <- file.name.info[[6]] # 24 or 48 hrs
   data <- as.matrix(read.table(paste(file.path, name, sep='')))
   
+    # Calculate the mean, and sd reading for water
+    avg.water <- mean(c(data[1,1], data[1,5], data[1,9]))
+    sd.water <- sd(c(data[1,1], data[1,5], data[1,9]))
+  
   # if it's an ancestor file, do not normalize
   if (AorD == 'D'){
     # Remove the background
@@ -136,16 +140,13 @@ for (name in file.names){
     index <- match(new.name, names(water.vals))
     norm.val <- water.vals[[index]]
     
-    # Calculate the mean reading for water
-    avg.water <- mean(data[1,1], data[1,5], data[1,9])
-    
     # Remove background and Normalize the data
     data <- round(data * (norm.val/avg.water), digits = 3)
     }
   
   i1.vals <- as.numeric(data[,1:4])
   i1.var <- var(i1.vals)
-  results <- cutoff(i1.vals)
+  results <- cutoff(i1.vals, avg.water, sd.water)
   i1.num <- results[1] 
   i1.mean <- results[2]  
   i1.sd <- results[3] 
@@ -153,7 +154,7 @@ for (name in file.names){
   
   i2.vals <- as.numeric(data[,5:8])
   i2.var <- var(i2.vals)
-  results <- cutoff(i2.vals)
+  results <- cutoff(i2.vals, avg.water, sd.water)
   i2.num <- results[1] 
   i2.mean <- results[2]  
   i2.sd <- results[3] 
@@ -161,7 +162,7 @@ for (name in file.names){
   
   i3.vals <- as.numeric(data[,9:12])
   i3.var <- var(i3.vals)
-  results <- cutoff(i1.vals)
+  results <- cutoff(i1.vals, avg.water, sd.water)
   i3.num <- results[1] 
   i3.mean <- results[2]  
   i3.sd <- results[3] 
@@ -204,54 +205,59 @@ se <- function(x){sd(x)/sqrt(length(x))}
 # Subset the data frame to include data from the first 24 hrs
 
 tp.24 <- subset(dat.frame, dat.frame$duration == 24)
+tp.24 <- droplevels(tp.24)
 tp.24.dat <- tp.24[,c(2:3, 5, 10, 14, 18)]
 
 m1.24 <- melt(tp.24.dat, id = c("strain","evo.type","plate.replicate"))
 
 # Convert values into numbers
-m1.24$value <- as.matrix(as.character(m1.24$value))
+m1.24$value <- as.numeric(as.character(m1.24$value))
 
-# ERROR HERE SOMEWHERE
+
 # Cast data to produce the mean number of resources for each isolate + sem
-#use.means <- as.data.frame(cast(m1.24, evo.type + plate.replicate ~ strain, mean))
-#use.sem <- as.data.frame(cast(m1.24, evo.type + plate.replicate ~ strain, se))
+# use.means <- as.data.frame(cast(m1.24, evo.type + plate.replicate ~ strain, mean))
+# use.sem <- as.data.frame(cast(m1.24, evo.type + plate.replicate ~ strain, se))
+use.means <- as.data.frame(cast(m1.24, evo.type + plate.replicate ~ strain, mean))
+use.sem <- as.data.frame(cast(m1.24, evo.type + plate.replicate ~ strain, se))
 ```
 
 There are several ways to visualize this data set. Using the two matrices we just created, let's now make a bar plot with the mean data. Is this the most appropriate way to look at our data?
 
 ```{r, results = 'hide', echo=FALSE, message = FALSE, warning = FALSE}
-# png(filename = "./figures/24hr-ResourcesUsed.png",
-#     width = 700, height = 500, units = "px", pointsize = 17, bg = "white")
-# 
-# par(mar = par(mar = c(3,5,2,1) + 0.1))
-# plot.new()
-# bp <- barplot(as.matrix(use.means),
-#         # set the plot parameters
-#         ylim = c(0, 15),
-#         
-#         # label the axises
-#         xlab = list("Strain", cex = 1.5, font = 2),
-#         ylab = list("Mean Number of Resources", cex = 1.5, font = 2),
-#         main = "24 hours",
-#         
-#         #Change the plot aesthetics
-#         cex.axis = 1.25, las = 1, beside = T,
-#         col = c("black","White","White","White"), #"black","White","White","White"
-#         
-#         #create a legend
-#         legend.text = c("Ancestor","Derived"), 
-#         args.legend = list(col = c("black","white"), bty = 'n', cex = 1.15)
-#         )
-# 
-# #text(1.5,14,"24 hrs", cex = 2, font = 2)
-# box(lwd = 3)
-# 
-# # Let's add some error bars
-# arrows(bp, use.means - use.sem, 
-#        bp, use.means + use.sem, 
-#        lwd = 2, angle = 90, code = 0)
-# 
-# dev.off()
+png(filename = "./figures/24hr-ResourcesUsed.png",
+    width = 700, height = 500, units = "px", pointsize = 17, bg = "white")
+
+par(mar = c(4,5,2,1) + 0.1)
+plot.new()
+bp <- barplot(use.means[,3],
+        # set the plot parameters
+        ylim = c(0, 25),
+        
+        # label the axises
+        # xlab = list("Strain", cex = 1.5, font = 2),
+        ylab = list("Mean Number of Resources", cex = 1.5, font = 2),
+        main = paste("KBS", levels(m1.24$strain), ": 24 hours", sep=""),
+        
+        #Change the plot aesthetics
+        cex.axis = 1.25, las = 1, beside = T,
+        col = c("black","White","White","White"), #"black","White","White","White"
+        
+        #create a legend
+        legend.text = c("Ancestor","Derived"), 
+        args.legend = list(col = c("black","white"), bty = 'n', cex = 1.15)
+        )
+
+#text(1.5,14,"24 hrs", cex = 2, font = 2)
+box(lwd = 3)
+
+# Let's add some error bars
+arrows(bp, use.means[,3] - use.sem[,3], 
+       bp, use.means[,3] + use.sem[,3], 
+       lwd = 2, angle = 90, code = 0)
+arrows(x0 = bp[1,], y0 = use.means[1,3], y1 = use.means[1,3] - use.sem[1,3], 
+       lwd = 2, angle =90, code = 0, col = "white")
+
+dev.off()
 ```
 
 
@@ -282,11 +288,14 @@ use.sem <- as.matrix(cast(m1.48, evo.type + plate.replicate ~ strain, se))
 There are several ways to visualize this data set. Using the two matrices we just created, let's now make a bar plot with the mean data. Is this the most appropriate way to look at our data?
 
 ```{r, results = 'hide', echo=FALSE, message = FALSE, warning = FALSE}
-par(mar = par(mar = c(3,5,2,1) + 0.1))
+png(filename = "./figures/48hr-ResourcesUsed.png",
+     width = 700, height = 500, units = "px", pointsize = 17, bg = "white")
+plot.new()
+par(mar = c(5,5,2,1) + 0.1)
 
 bp2 <- barplot(use.means,
         # set the plot parameters
-        ylim = c(0,15),
+        ylim = c(0,31),
         
         #label the axises
         xlab = list("Strain", cex = 1.5, font = 2),
@@ -299,7 +308,7 @@ bp2 <- barplot(use.means,
         
         #create a legend
         legend.text = c("Ancestor","Derived"), 
-        args.legend = list(col = c("black","white"), bty = 'n', cex = 1.15)
+        args.legend = list(col = c("black","white"), bty = 'n', cex = 1.15, x = "top")
         )
 #text(1.5,14,"24 hrs", cex = 2, font = 2)
 box(lwd = 3)
@@ -308,6 +317,61 @@ box(lwd = 3)
 arrows(bp2, use.means - use.sem, 
        bp2, use.means + use.sem, 
        lwd = 2, angle = 90, code = 0)
+arrows(x0 = bp2[1,], y0 = use.means[1,], y1 = use.means[1,] - use.sem[1,], 
+       lwd = 2, angle =90, code = 0, col = "white")
+
+dev.off()
+
+```
+
+![48 Hour Resource Use](/figures/48hr-ResourcesUsed.png)
+
+We can also make individual figures
+
+```{r, results = 'hide', echo=FALSE, message = FALSE, warning = FALSE}
+for(i in m1.48$strain){
+  png(filename = paste("./figures/48hr-ResourcesUsed", i, ".png", sep=""),
+      width = 700, height = 500, units = "px", pointsize = 17, bg = "white")
+  plot.new()
+  par(mar = c(3,5,2,1) + 0.1)
+  
+  st.means <- use.means[, which(colnames(use.means) == i)]
+  st.sem <- use.sem[, which(colnames(use.sem) == i)]
+
+  st.bp <- barplot(st.means,
+                   # set the plot parameters
+                   ylim = c(0,31),
+        
+                   #label the axises
+                   # xlab = list("Strain", cex = 1.5, font = 2),
+                   ylab = list("Mean Number of Resources", cex = 1.5, font = 2),
+                   main = paste("KBS", i, ": 48 hours", sep=""),
+                   
+                   #label plates
+                   names.arg = c("A", "D1", "D2", "D3"),
+                   cex.names = 1.5,
+        
+                   #Change the plot aesthetics
+                   cex.axis = 1.25, las = 1, beside = T,
+                   col = c("black","White","White","White"),
+        
+                   #create a legend
+                   legend.text = c("Ancestor","Derived"), 
+                   args.legend = list(col = c("black","white"), bty = 'n', cex = 1.15)
+                   )
+
+  box(lwd = 3)
+
+  # Let's add some error bars
+  arrows(st.bp, st.means - st.sem, 
+         st.bp, st.means + st.sem, 
+         lwd = 2, angle = 90, code = 0)
+  arrows(x0 = st.bp[1], y0 = st.means[1], y1 = st.means[1] - st.sem[1], 
+         lwd = 2, angle =90, code = 0, col = "white")
+
+dev.off()
+}
+
 ```
 
 Let's run our stats to determine if there are any differences!
@@ -315,11 +379,13 @@ Let's run our stats to determine if there are any differences!
 What is the question we are trying to answer?
 ```{r}
 
-fit.24 <- aov(value ~ strain* evo.type * plate.replicate, data = m1.24)
+fit.24 <- aov(value ~ evo.type * plate.replicate, data = m1.24)
 summary(fit.24)
+TukeyHSD(fit.24)
 
-fit.48 <- aov(value ~ strain* evo.type * plate.replicate, data = m1.48)
+fit.48 <- aov(value ~ strain * evo.type * plate.replicate, data = m1.48)
 summary(fit.48)
+TukeyHSD(fit.48)
 
 ```
 
