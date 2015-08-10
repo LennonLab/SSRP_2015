@@ -196,6 +196,42 @@ for (i in strains){
   assign(paste("StrainPlot", i, sep=""), data.plot)
 }
 
+
+
+### New Data Frame For Plotting
+pad <- 4
+amine <- 1:6
+amino.acid <- (7:24) + pad
+carb <- (25:45) + tail(amino.acid, n=1) - 25 + pad + 1
+carbox <- (46:72) + tail(carb, n=1) - 46 + pad + 1
+ester <- (73:75) + tail(carbox, n=1) - 73 + pad + 1
+phos <- (76:81) + tail(ester, n=1) -76 + pad + 1
+poly <- (82:93) + tail(phos, n=1) - 82 + pad + 1
+x.axis <-c(amine, amino.acid, carb, carbox, ester, phos, poly)
+
+plot.data <- cbind(x.axis, StrainPlot0711)
+plot.data[,6] <- NA
+
+plot.data[1:6,6] <- as.character(rep("red", 6))
+plot.data[7:24,6] <- as.character(rep("blue", 18))
+plot.data[25:45,6] <- as.character(rep("green", 21))
+plot.data[46:72,6] <- as.character(rep("purple", 27))
+plot.data[73:75,6] <- as.character(rep("magenta", 3))
+plot.data[76:81,6] <- as.character(rep("orange", 6))
+plot.data[82:93,6] <- as.character(rep("yellow", 12))
+
+#colnames(plot.data[6])[colnames(plot.data[6])=="V6"] <- "color"
+
+
+### plotting
+plot.new()
+png(filename="~/GitHub/SSRP_2015/figures/lollipops.png", width = 1800, 
+    height = 600, res = 96*2)
+
+plot(plot.data$value, type="h", ylim = c(-2, 2.5), yaxt='n', xaxt = 'n', xlab = "", ylab="Fold Change", lty = 3)
+axis(side = 2, at = c(-2, -1, 0, 1, 2), labels = c("-3", "-2", "", "2", "3"), las = 1)
+
+
 plot(StrainPlot0711$value, type="h", ylim = c(-2, 2.5), yaxt='n', xaxt = 'n', xlab = "", ylab="Fold Change", lty = 3)
 axis(side = 2, at = c(-2, -1, 0, 1, 2), labels = c("-3", "-2", "", "2", "3"), las = 1)
 abline(h = 0, lty = 2)
