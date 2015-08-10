@@ -1,0 +1,492 @@
+---
+title: "SSRP 2015"
+author: "Lennon Lab"
+date: "Monday, July 13, 2015"
+header-includes:
+   - \usepackage{array}
+output: pdf_document
+geometry: margin=2.54cm
+---
+
+
+## OVERVIEW
+Here, we will use R and RStudio to examine patterns of change in resource use between an ancestral strain a derived strain. We will begin by focusing on three aspects:
+
+### 1.) Average resource use 
+One of the simplest, and hence, first questions to ask is whether there are changes in average resource use and the average number of resources used. For instance, does the derived use more resources or less resources? Is the derived able to use each resource to a greater or lesser degree?
+
+### 2.) Resource breadth vs. capacity
+A second and more in-depth question is how the number of resources used relates to the degree to which an organisms typically uses resources. This may relate to the potential for the organism to use generalist (i.e., okay at using many resources, "jack of all trades") and specialist strategies (i.e., really good at using just a few resources).
+
+### 3.) Changes in the metabolic "fingerprint"
+Note how the first two questions do not actually account for *which* resources get used or how the various resources are related by a common element or nutrient. However, by combining information on which resources are used, how greatly they are used, and how the resources are related, we can obtain a metabolic "fingerprint" for the organism. In this way, we can ask whether the fingerprint has changed between the ancestral strain and the derived strain.
+
+
+## 1.) SETUP
+### A. Clear the Workspace and Retrieve and Set the Working Directory
+We will begin our analysis by clearing our workspace of any variables, that is, leftover information from any previous work. 
+We then set our 'working directory', which points R to the folder that contains our project's files (i.e., SSRP_2015).
+
+```{r, results = 'hide', echo=TRUE, message = FALSE, warning = FALSE}
+rm(list = ls()) 
+getwd() 
+setwd("~/GitHub/SSRP_2015") 
+```
+
+### Install Packages
+Next, we will import statistical packages that will allow us to analyze our data with specific tools.
+We will begin by importing a package called `vegan`, which is often used by biologists and ecologists.
+Let's install the `vegan` package and its dependencies. 
+If you are running `vegan` for the first time, you will need to install it with the `install.packages` function. 
+Otherwise, we recommend you just use the `require` function to load `vegan` and its dependencies.
+
+```{r, results = 'hide', echo=TRUE, message = FALSE, warning = FALSE}
+#install.packages("vegan") 
+#install.packages("reshape") 
+require("vegan")
+require("reshape")
+```
+
+
+## DEFINE A FUNCTION FOR RESOURCE USE
+A look at the data will reveal that among species, isolates, and replicates, that nearly all resourcess appear to be used to some degree.
+Even water appears to be used, despite the absence of nutrients in it.
+Consequently, we need to determine which values constitute real use.
+To do this, we will simply not count any resource as being used, if the corresponding value is less than two standard deviations away from the value for water.
+
+```{r, results = 'hide', echo=TRUE, message = FALSE, warning = FALSE}
+cutoff <- function(avg= "avg.water", sd = "sd.water", vals){
+
+  # should also return the error
+  # mean, error, sd, should be based on resource qualified as being used
+
+  cutoff <- 2*sd
+  num <- 0
+  
+  for (val in vals){
+    if (val >= avg+cutoff){
+      num = num + 1      
+      } 
+    } 
+  return(num)
+}
+
+```
+
+
+## 2) LOADING DATA
+Here, we will load the data generated from our plate reader and the Ecolog software as well as a table of names corresponding to each resource and location on the plates.
+But first, we need to find the average use values for water that were recorded for each species at a given time.
+We will use these values, which really do not reflect resource use, to normalize (or make comparable) the resource use values across different plates.
+
+```{r, results = 'hide', echo=FALSE, message = FALSE, warning = FALSE}
+#file.path <- "~/GitHub/SSRP_2015/data/cleaned/"
+file.path <- "./data/cleaned/"
+
+file.names <- list.files(path = file.path, all.files=FALSE, 
+                    full.names=FALSE, ignore.case=FALSE, include.dirs=FALSE)
+
+# read in ancestor files and grab average water use value 
+# Length must equal number of strain IDs in folder
+water.vals <- vector(mode="list", length=4) 
+# create a list of unique identifiers by combining the id and duration
+# All strains in the data folder must be on this line
+names(water.vals) <- c('0711.24', '0711.48', '0723.48', '0703.48')
+
+
+for (name in file.names){
+  file.name.info <- strsplit(name, "\\.") # split file name
+  sp.id <- file.name.info[[1]][2] # organism ID
+  AorD <- file.name.info[[1]][3] # ancestral or derived
+  duration <- file.name.info[[1]][6] # 24 or 48 hrs
+  
+  if (AorD == 'A'){ # if the strain is ancestral...
+    new.name <- paste(sp.id, duration, sep='.')
+    dat <- as.matrix(read.table(paste(file.path, name, sep='')))
+    avg <- mean(dat[1,1], dat[1,5], dat[1,9])
+    index <- match(new.name, names(water.vals))
+    water.vals[[index]] <- avg
+    }
+  } 
+```
+
+
+Next we save the world... and normalize our data
+
+```{r, results = 'hide', echo=FALSE, message = FALSE, warning = FALSE}
+#file.path <- "~/GitHub/SSRP_2015/data/cleaned/"
+file.path <- "./data/cleaned/"
+file.names <- list.files(path = file.path, all.files=FALSE, 
+                    full.names=FALSE, ignore.case=FALSE, include.dirs=FALSE)
+
+file.name.data <- c()
+names <- c()
+saved <- c()
+for (name in file.names){
+  file.name.info <- strsplit(name, "\\.") # split file name
+  file.name.info <- file.name.info[[1]][-7]
+  
+  sp.id <- file.name.info[[2]] # organism ID
+  rep <- paste(file.name.info[[4]], file.name.info[[5]], sep="")
+  AorD <- file.name.info[[3]] # ancestral or derived
+  duration <- file.name.info[[6]] # 24 or 48 hrs
+  data <- as.matrix(read.table(paste(file.path, name, sep='')))
+  assign(paste(sp.id, AorD, rep, duration, sep="."), data)
+  names <- c(names, sp.id)
+  saved <- c(paste(sp.id, AorD, rep, duration, sep="."), saved) 
+  }
+
+strains <- levels(as.factor(names))
+resource.names <- as.matrix(read.table("./ecoplate.info/resource_matrix.txt"))
+mol.groups <- as.matrix(read.delim("./ecoplate.info/moleculetype_matrix.txt", header=F))
+resources <- levels(as.factor(resource.names))
+r.names <- as.factor(resource.names)[1:32]
+c.grouping <- as.factor(mol.groups)[1:32]
+group.res <- data.frame(r.names, c.grouping)[-1, ]
+resources <- resources[resources != "Water"]
+
+for (i in strains){
+  data <- as.data.frame(matrix(NA, 31, 15))
+  colnames(data) <- c("Resource", "Group", "Anc", "D1.A", "D1.B", "D1.C", "D2.A", "D2.B", "D2.C", "D3.A", "D3.B", "D3.C", "D1fold", "D2fold", "D3fold")
+  data$Resource <- resources
+  Anc <- get(saved[grep(paste(i, ".A.*.48", sep=""), saved)])
+  anc.avg.water <- mean(c(Anc[1,1], Anc[1,5], Anc[1,9]))
+  for (j in resources){
+    data$Group[which(data$Resource == j)] <- as.character(group.res$c.grouping[which(group.res$r.names == j)])
+    }
+  for (k in resources){
+    data$Anc[which(data$Resource  == k)] <- mean(Anc[which(resource.names == k)])
+  } 
+  for (l in 1:length(grep(paste(i, ".D.*.48", sep=""), saved))){
+    Der <- get(saved[grep(paste(i, ".D.*.48", sep=""), saved)][l])
+    der.avg.water <- mean(c(Der[1,1], Der[1,5], Der[1,9]))
+    # Remove background and Normalize the data
+    Der <- round(Der * (der.avg.water/anc.avg.water), digits = 3)
+    for (m in resources){
+      data[which(data$Resource == m), 3 + l] <- mean(Der[which(resource.names == m)])
+    }
+  }
+  data$D1fold <- round(apply(data[, 4:6], 1, mean, na.rm = TRUE) / data$Anc, 3)
+  data$D2fold <- round(apply(data[, 7:9], 1, mean, na.rm = TRUE) / data$Anc, 3)
+  data$D3fold <- round(apply(data[, 10:12], 1, mean, na.rm = TRUE) / data$Anc, 3)
+  for (n in 1:length(resources)){
+    if (data$D1fold[n] >= 1){
+      data$D1fold[n] <- data$D1fold[n] - 1
+      } else {
+        data$D1fold[n] <- -(1/data$D1fold[n]) + 1
+      }
+     if (data$D2fold[n] >= 1){
+      data$D2fold[n] <- data$D2fold[n] - 1
+      } else {
+        data$D2fold[n] <- -(1/data$D2fold[n]) + 1
+      }   
+     if (data$D3fold[n] >= 1){
+      data$D3fold[n] <- data$D3fold[n] - 1
+      } else {
+        data$D3fold[n] <- -(1/data$D3fold[n]) + 1
+      }   
+    }
+  newdata <- data[order(data$Group),]
+  
+  data.plot <- newdata[,c(1:2, 13:15)]
+  data.plot <- melt(data.plot)
+  data.plot <- data.plot[order(data.plot$Group, data.plot$Resource), ]
+  
+  assign(paste("Strain", i, sep=""), newdata)
+  assign(paste("StrainPlot", i, sep=""), data.plot)
+}
+
+
+
+### New Data Frame For Plotting
+pad <- 4
+amine <- 1:6
+amino.acid <- (7:24) + pad
+carb <- (25:45) + tail(amino.acid, n=1) - 25 + pad + 1
+carbox <- (46:72) + tail(carb, n=1) - 46 + pad + 1
+ester <- (73:75) + tail(carbox, n=1) - 73 + pad + 1
+phos <- (76:81) + tail(ester, n=1) -76 + pad + 1
+poly <- (82:93) + tail(phos, n=1) - 82 + pad + 1
+x.axis <-c(amine, amino.acid, carb, carbox, ester, phos, poly)
+
+plot.data <- cbind(x.axis, StrainPlot0711)
+plot.data[,6] <- NA
+
+plot.data[1:6,6] <- as.character(rep("red", 6))
+plot.data[7:24,6] <- as.character(rep("blue", 18))
+plot.data[25:45,6] <- as.character(rep("green", 21))
+plot.data[46:72,6] <- as.character(rep("purple", 27))
+plot.data[73:75,6] <- as.character(rep("magenta", 3))
+plot.data[76:81,6] <- as.character(rep("orange", 6))
+plot.data[82:93,6] <- as.character(rep("yellow", 12))
+
+#colnames(plot.data[6])[colnames(plot.data[6])=="V6"] <- "color"
+
+
+### plotting
+plot.new()
+png(filename="~/GitHub/SSRP_2015/figures/lollipops.png", width = 1800, 
+    height = 600, res = 96*2)
+
+plot(plot.data$value, type="h", ylim = c(-2, 2.5), yaxt='n', xaxt = 'n', xlab = "", ylab="Fold Change", lty = 3)
+axis(side = 2, at = c(-2, -1, 0, 1, 2), labels = c("-3", "-2", "", "2", "3"), las = 1)
+
+
+plot(StrainPlot0711$value, type="h", ylim = c(-2, 2.5), yaxt='n', xaxt = 'n', xlab = "", ylab="Fold Change", lty = 3)
+axis(side = 2, at = c(-2, -1, 0, 1, 2), labels = c("-3", "-2", "", "2", "3"), las = 1)
+abline(h = 0, lty = 2)
+abline(h = c(1,-1), lty = 2, col = "grey")
+abline(v = 6.5)
+abline(v = 24.5)
+points(StrainPlot0711$value)
+text(c(4, 18), par("usr")[3] - 0.05, srt=45, adj=1, xpd=T, cex = 1, labels = c("Amines", "Amino Acids"))
+
+  
+
+  text(seq(1.5,100,by=2), par("usr")[3]-0.25, 
+     srt = 60, adj= 1, xpd = TRUE, cex=0.65)
+
+
+for 
+
+
+  AorD <- file.name.info[[3]] # ancestral or derived
+  duration <- file.name.info[[6]] # 24 or 48 hrs
+  data <- as.matrix(read.table(paste(file.path, name, sep='')))
+  
+  # Calculate the mean, and sd reading for water
+  avg.water <- mean(c(data[1,1], data[1,5], data[1,9]))
+  sd.water <- sd(c(data[1,1], data[1,5], data[1,9]))
+  
+  # if it's an ancestor file, do not normalize
+  if (AorD == 'D'){
+    # Remove the background
+    # background <- 0.042
+    new.name <- paste(sp.id, duration, sep='.')
+    index <- match(new.name, names(water.vals))
+    norm.val <- water.vals[[index]]
+    
+    # Remove background and Normalize the data
+    data <- round(data * (norm.val/avg.water), digits = 3)
+    }
+  
+  i1.vals <- as.numeric(data[,1:4])
+  i1.vals <- i1.vals[-1] # removing the single water value
+  i1.num <- cutoff(avg.water, sd.water, i1.vals)
+  i1.mean <- mean(i1.vals)  
+  i1.sd <- sd(i1.vals) 
+  i1.err <- i1.sd/sqrt(length(i1.vals))
+  
+  i2.vals <- as.numeric(data[,5:8])
+  i2.vals <- i2.vals[-1]
+  i2.num <- cutoff(avg = avg.water, sd = sd.water, i2.vals)
+  i2.mean <- mean(i2.vals)  
+  i2.sd <- sd(i2.vals) 
+  i2.err <- i1.sd/sqrt(length(i2.vals))
+  
+  i3.vals <- as.numeric(data[,9:12])
+  i3.vals <- i3.vals[-1]
+  i3.num <- cutoff(avg = avg.water, sd = sd.water, i3.vals)
+  i3.mean <- mean(i3.vals)  
+  i3.sd <- sd(i3.vals) 
+  i3.err <- i3.sd/sqrt(length(i3.vals))
+  
+  file.name.info <- c(file.name.info, i1.mean, i1.sd, i1.err, i1.num)
+  file.name.info <- c(file.name.info, i2.mean, i2.sd, i2.err, i2.num)
+  file.name.info <- c(file.name.info, i3.mean, i3.sd, i3.err, i3.num)
+  file.name.data <- rbind(file.name.data, file.name.info)
+  }
+
+sd.water <- sd(c(data[1,1], data[1,5], data[1,9]))
+avg.water <- mean(c(data[1,1], data[1,5], data[1,9]))
+
+dat.frame <- data.frame(matrix(unlist(file.name.data),
+                      nrow=length(file.names), byrow=FALSE), stringsAsFactors=TRUE)
+dat.frame <- setNames(dat.frame, c('data', 'strain', 'evo.type',
+                      'plate', 'plate.replicate', 'duration',
+                      'i1.mean', 'i1.sd', 'i1.err', 'i1.num.resources',
+                      'i2.mean', 'i2.sd', 'i2.err', 'i2.num.resources',
+                      'i3.mean', 'i3.sd', 'i3.err', 'i3.num.resources'))
+
+resource.names <- as.matrix(read.table("./ecoplate.info/resource_matrix.txt"))
+mol.groups <- as.matrix(read.delim("./ecoplate.info/moleculetype_matrix.txt", header=F))
+```
+
+## 3) Analyzing and visualizing data
+
+Let's examine the following questions with our data set:
+  1) How many resources were used by each strain?
+  2) What resources are used by each strain?
+
+**48 hr data**
+
+In each data set, we have biological replicates for each strain and line, but also technical replicates for each substrate within the Ecolog plate. Let's think about why we are using the standard error of the mean, rather than the standard deviation.  
+
+```{r, results = 'hide', echo=FALSE, message = FALSE, warning = FALSE}
+
+se <- function(x){sd(x)/sqrt(length(x))} 
+
+# First, we need to get our data into a useable table to produce the bargraphs
+# Subset the data frame to include data from the first 24 hrs
+
+tp.48 <- subset(dat.frame, dat.frame$duration == 48)
+tp.48.dat <- tp.48[,c(2:3, 5, 10, 14, 18)]
+
+m1.48 <- melt(tp.48.dat, id = c("strain","evo.type","plate.replicate"))
+
+# Convert values into numbers
+m1.48$value <- as.numeric(as.character(m1.48$value))
+
+# Cast data to produce the mean number of resources for each isolate + sem
+use.means <- as.data.frame(cast(m1.48, evo.type + plate.replicate ~ strain, mean))
+use.sem <- as.data.frame(cast(m1.48, evo.type + plate.replicate ~ strain, se))
+```
+
+There are several ways to visualize this data set. Using the two matrices we just created, let's now make a bar plot with the mean data. Is this the most appropriate way to look at our data?
+
+```{r, results = 'hide', echo=FALSE, message = FALSE, warning = FALSE}
+strains <- c('0703', '0711', '0723')
+ct <- 3
+for (strain in strains){
+  fig.filepath <- paste('./figures/', strain, '-48hr-ResourcesUsed.png', sep='')
+
+  png(filename = fig.filepath,
+      width = 700, height = 500, units = "px", pointsize = 17, bg = "white")
+
+  plot.new()
+  par(mar = c(3,5,2,1) + 0.1)
+
+  means <- as.numeric(use.means[, ct])
+  sems  <- as.numeric(use.sem[, ct])
+
+  bp <- barplot(means,
+              
+        # set the plot parameters
+        ylim = c(0, max(means)*1.35),
+        
+        # label the axises
+        names.arg = c("A", "D1", "D2", "D3"),
+        # xlab = list(paste("Strain: KBS", strain, sep=""), cex = 1.5, font = 2),
+        ylab = list("Mean Number of Resources", cex = 1.5, font = 2),
+        main = paste("KBS", strain, ": 48 hours", sep=""),
+        
+        #Change the plot aesthetics
+        cex.axis = 1.25, las = 1, beside = T,
+        col = c("black","White","White","White"), 
+        
+        #create a legend
+        legend.text = c("Ancestor","Derived"),
+        args.legend = list(col = c("black","white"), bty = 'n', cex = 1.15)
+        )
+
+  box(lwd = 3)
+
+  # Let's add some error bars
+  arrows(bp, means - sems, 
+       bp, means + sems, 
+       lwd = 2, angle = 90, code = 0)
+
+  # Add White Line for A error
+  arrows(x0 = bp[1], y0 = means[1], y1= means[1] - sems[1], 
+       lwd = 2, angle = 90, code = 0, col="white")
+
+  dev.off()
+  ct <- ct + 1
+  }
+
+```
+
+
+**24 hr data**
+
+In each data set, we have biological replicates for each strain and line, but also technical replicates for each substrate within the Ecolog plate. Let's think about why we are using the standard error of the mean, rather than the standard deviation.  
+
+```{r, results = 'hide', echo=FALSE, message = FALSE, warning = FALSE}
+
+se <- function(x){sd(x)/sqrt(length(x))} 
+
+# First, we need to get our data into a useable table to produce the bargraphs
+# Subset the data frame to include data from the first 24 hrs
+
+tp.24 <- subset(dat.frame, dat.frame$duration == 24)
+tp.24.dat <- tp.24[,c(2:3, 5, 10, 14, 18)]
+
+m1.24 <- melt(tp.24.dat, id = c("strain","evo.type","plate.replicate"))
+
+# Convert values into numbers
+m1.24$value <- as.numeric(as.character(m1.24$value))
+
+# ERROR HERE SOMEWHERE
+# Cast data to produce the mean number of resources for each isolate + sem
+use.means <- as.data.frame(cast(m1.24, evo.type + plate.replicate ~ strain, mean))
+use.sem <- as.data.frame(cast(m1.24, evo.type + plate.replicate ~ strain, se))
+```
+
+There are several ways to visualize this data set. Using the two matrices we just created, let's now make a bar plot with the mean data. Is this the most appropriate way to look at our data?
+
+```{r, results = 'hide', echo=FALSE, message = FALSE, warning = FALSE}
+
+strains <- c('0711')
+for (strain in strains){
+  fig.filepath <- paste('./figures/', strain, '-24hr-ResourcesUsed.png', sep='')
+
+  png(filename = fig.filepath,
+      width = 700, height = 500, units = "px", pointsize = 17, bg = "white")
+
+  plot.new()
+  par(mar = c(3,5,2,1) + 0.1)
+
+  means <- as.numeric(use.means[,3])
+  sems  <- as.numeric(use.sem[,3])
+
+  bp <- barplot(means,
+              
+        # set the plot parameters
+        ylim = c(0, max(means)*1.25),
+        
+        # label the axises
+        names.arg = c("A", "D1", "D2", "D3"),
+        # xlab = list(paste("Strain: KBS", strain, sep=""), cex = 1.5, font = 2),
+        ylab = list("Mean Number of Resources", cex = 1.5, font = 2),
+        main = paste("KBS", strain, ": 24 hours", sep=""),
+        
+        #Change the plot aesthetics
+        cex.axis = 1.25, las = 1, beside = T,
+        col = c("black","White","White","White"), 
+        
+        #create a legend
+        legend.text = c("Ancestor","Derived"),
+        args.legend = list(col = c("black","white"), bty = 'n', cex = 1.15)
+        )
+
+  box(lwd = 3)
+
+  # Let's add some error bars
+  arrows(bp, means - sems, 
+       bp, means + sems, 
+       lwd = 2, angle = 90, code = 0)
+
+  # Add White Line for A error
+  arrows(x0 = bp[1], y0 = means[1], y1= means[1] - sems[1], 
+       lwd = 2, angle = 90, code = 0, col="white")
+
+  dev.off()
+  }
+
+```
+
+
+Let's run our stats to determine if there are any differences!
+
+What is the question we are trying to answer?
+```{r}
+
+fit.24 <- aov(value ~ evo.type * plate.replicate, data = m1.24)
+summary(fit.24)
+TukeyHSD(fit.24)
+
+fit.48 <- aov(value ~ strain * evo.type * plate.replicate, data = m1.48)
+summary(fit.48)
+TukeyHSD(fit.48)
+
+```
